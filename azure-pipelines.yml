@@ -2,7 +2,7 @@ trigger:
   - '*'
   
 pool:
-  vmImage: 'ubuntu-20.04'
+  name: 'MyAgentPool'
   demands:
   - npm
 
@@ -17,6 +17,9 @@ steps:
   inputs:
     version: '$(dotnetSdkVersion)'
 
+- task: NuGetToolInstaller@0
+  inputs:
+    versionSpec: '5.9.1'
 - task: Npm@1
   displayName: 'Run npm install'
   inputs:
@@ -32,19 +35,29 @@ steps:
   displayName: 'Write build info'
   workingDirectory: $(wwwrootDir)
 
-- task: DotNetCoreCLI@2
+- task: NuGetCommand@2
   displayName: 'Restore project dependencies'
   inputs:
     command: 'restore'
+    restoreSolution: '**/*.sln'
+    feedsToUse: 'select'
+    vstsFeed: '$(System.TeamProject)/Tailspin.SpaceGame.Web.Models'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Build the project - $(buildConfiguration)'
+  inputs:
+    command: 'build'
+    arguments: '--no-restore --configuration $(buildConfiguration)'
     projects: '**/*.csproj'
 
-- template: templates/build.yml
-  parameters:
-    buildConfiguration: 'Debug'
-  
-- template: templates/build.yml
-  parameters:
-    buildConfiguration: 'Release'
+- task: DotNetCoreCLI@2
+  displayName: 'Publish the project - $(buildConfiguration)'
+  inputs:
+    command: 'publish'
+    projects: '**/*.csproj'
+    publishWebProjects: false
+    arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/$(buildConfiguration)'
+    zipAfterPublish: true
 
 - task: PublishBuildArtifacts@1
   displayName: 'Publish Artifact: drop'
